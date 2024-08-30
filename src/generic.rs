@@ -584,7 +584,7 @@ where
 {
     let (cancel_tx, cancel_rx) = oneshot::channel();
 
-    let py_fut = create_future(locals.event_loop.clone_ref(py).into_bound(py))?;
+    let py_fut = create_future(locals.event_loop.clone().into_bound(py))?;
     py_fut.call_method1(
         "add_done_callback",
         (PyDoneCallback {
@@ -593,7 +593,7 @@ where
     )?;
 
     let future_tx1 = PyObject::from(py_fut.clone());
-    let future_tx2 = future_tx1.clone_ref(py);
+    let future_tx2 = future_tx1.clone();
 
     R::spawn(async move {
         let locals2 = locals.clone();
@@ -606,7 +606,7 @@ where
             .await;
 
             Python::with_gil(move |py| {
-                if cancelled(future_tx1.clone_ref(py).into_bound(py))
+                if cancelled(future_tx1.clone().into_bound(py))
                     .map_err(dump_err(py))
                     .unwrap_or(false)
                 {
@@ -625,7 +625,7 @@ where
         {
             if e.is_panic() {
                 Python::with_gil(move |py| {
-                    if cancelled(future_tx2.clone_ref(py).into_bound(py))
+                    if cancelled(future_tx2.clone().into_bound(py))
                         .map_err(dump_err(py))
                         .unwrap_or(false)
                     {
@@ -988,7 +988,7 @@ where
 {
     let (cancel_tx, cancel_rx) = oneshot::channel();
 
-    let py_fut = create_future(locals.event_loop.clone_ref(py).into_bound(py))?;
+    let py_fut = create_future(locals.event_loop.clone().into_bound(py))?;
     py_fut.call_method1(
         "add_done_callback",
         (PyDoneCallback {
@@ -997,7 +997,7 @@ where
     )?;
 
     let future_tx1 = PyObject::from(py_fut.clone());
-    let future_tx2 = future_tx1.clone_ref(py);
+    let future_tx2 = future_tx1.clone();
 
     R::spawn_local(async move {
         let locals2 = locals.clone();
@@ -1010,7 +1010,7 @@ where
             .await;
 
             Python::with_gil(move |py| {
-                if cancelled(future_tx1.clone_ref(py).into_bound(py))
+                if cancelled(future_tx1.clone().into_bound(py))
                     .map_err(dump_err(py))
                     .unwrap_or(false)
                 {
@@ -1029,7 +1029,7 @@ where
         {
             if e.is_panic() {
                 Python::with_gil(move |py| {
-                    if cancelled(future_tx2.clone_ref(py).into_bound(py))
+                    if cancelled(future_tx2.clone().into_bound(py))
                         .map_err(dump_err(py))
                         .unwrap_or(false)
                     {
@@ -1444,10 +1444,15 @@ where
 }
 
 fn py_true() -> PyObject {
-    Python::with_gil(|py| true.into_py(py))
+    static TRUE: OnceCell<PyObject> = OnceCell::new();
+    TRUE.get_or_init(|| Python::with_gil(|py| true.into_py(py)))
+        .clone()
 }
 fn py_false() -> PyObject {
-    Python::with_gil(|py| false.into_py(py))
+    static FALSE: OnceCell<PyObject> = OnceCell::new();
+    FALSE
+        .get_or_init(|| Python::with_gil(|py| false.into_py(py)))
+        .clone()
 }
 
 trait Sender: Send + 'static {
@@ -1468,12 +1473,12 @@ where
     R: Runtime + ContextExt,
 {
     fn send(&mut self, locals: TaskLocals, item: PyObject) -> PyResult<PyObject> {
-        Python::with_gil(move |py| {
-            match self.tx.try_send(item.clone_ref(py)) {
-                Ok(_) => Ok(py_true()),
-                Err(e) => {
-                    if e.is_full() {
-                        let mut tx = self.tx.clone();
+        match self.tx.try_send(item.clone()) {
+            Ok(_) => Ok(py_true()),
+            Err(e) => {
+                if e.is_full() {
+                    let mut tx = self.tx.clone();
+                    Python::with_gil(move |py| {
                         Ok(
                             future_into_py_with_locals::<R, _, PyObject>(py, locals, async move {
                                 if tx.flush().await.is_err() {
@@ -1488,12 +1493,12 @@ where
                             })?
                             .into(),
                         )
-                    } else {
-                        Ok(py_false())
-                    }
+                    })
+                } else {
+                    Ok(py_false())
                 }
             }
-        })
+        }
     }
     fn close(&mut self) -> PyResult<()> {
         self.tx.close_channel();

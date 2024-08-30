@@ -443,7 +443,7 @@ fn close(event_loop: Bound<PyAny>) -> PyResult<()> {
 fn asyncio(py: Python) -> PyResult<Bound<PyAny>> {
     ASYNCIO
         .get_or_try_init(|| Ok(py.import_bound("asyncio")?.into()))
-        .map(|asyncio| asyncio.clone_ref(py).into_bound(py))
+        .map(|asyncio| asyncio.clone().into_bound(py))
 }
 
 /// Get a reference to the Python Event Loop from Rust
@@ -465,7 +465,7 @@ pub fn get_running_loop(py: Python) -> PyResult<Bound<PyAny>> {
 fn contextvars(py: Python) -> PyResult<Bound<PyAny>> {
     Ok(CONTEXTVARS
         .get_or_try_init(|| py.import_bound("contextvars").map(|m| m.into()))?
-        .clone_ref(py)
+        .clone()
         .into_bound(py))
 }
 
@@ -474,21 +474,12 @@ fn copy_context(py: Python) -> PyResult<Bound<PyAny>> {
 }
 
 /// Task-local data to store for Python conversions.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TaskLocals {
     /// Track the event loop of the Python task
     event_loop: PyObject,
     /// Track the contextvars of the Python task
     context: PyObject,
-}
-
-impl Clone for TaskLocals {
-    fn clone(&self) -> Self {
-        Python::with_gil(|py| Self {
-            event_loop: self.event_loop.clone_ref(py),
-            context: self.context.clone_ref(py),
-        })
-    }
 }
 
 impl TaskLocals {
@@ -520,12 +511,12 @@ impl TaskLocals {
 
     /// Get a reference to the event loop
     pub fn event_loop<'p>(&self, py: Python<'p>) -> Bound<'p, PyAny> {
-        self.event_loop.clone_ref(py).into_bound(py)
+        self.event_loop.clone().into_bound(py)
     }
 
     /// Get a reference to the python context
     pub fn context<'p>(&self, py: Python<'p>) -> Bound<'p, PyAny> {
-        self.context.clone_ref(py).into_bound(py)
+        self.context.clone().into_bound(py)
     }
 }
 
@@ -568,7 +559,7 @@ struct PyEnsureFuture {
 impl PyEnsureFuture {
     pub fn __call__(&mut self) -> PyResult<()> {
         Python::with_gil(|py| {
-            let task = ensure_future(py, self.awaitable.clone_ref(py).into_bound(py))?;
+            let task = ensure_future(py, self.awaitable.clone().into_bound(py))?;
             let on_complete = PyTaskCompleter { tx: self.tx.take() };
             task.call_method1("add_done_callback", (on_complete,))?;
 

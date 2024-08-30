@@ -121,6 +121,7 @@ pyo3-asyncio-macros = { path = "pyo3-asyncio-macros", version = "=0.21.0", optio
 [dependencies.pyo3]
 git = "https://github.com/liammcinroy/pyo3"
 branch = "nofreeze"
+features = ["py-clone"]
 
 [dev-dependencies.pyo3]
 git = "https://github.com/liammcinroy/pyo3"
