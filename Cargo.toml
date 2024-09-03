@@ -119,12 +119,12 @@ pin-project-lite = "0.2"
 pyo3-asyncio-macros = { path = "pyo3-asyncio-macros", version = "=0.21.0", optional = true }
 
 [dependencies.pyo3]
-git = "https://github.com/liammcinroy/pyo3"
+git = "https://github.com/durable-code/pyo3"
 branch = "nofreeze"
 features = ["py-clone"]
 
 [dev-dependencies.pyo3]
-git = "https://github.com/liammcinroy/pyo3"
+git = "https://github.com/durable-code/pyo3"
 branch = "nofreeze"
 features = ["macros"]
 
